@@ -152,6 +152,8 @@ type Config struct {
 	DisableUi bool `json:"disableUi" mapstructure:"disable_ui" query:"disable_ui" form:"disable_ui" default:"false"`
 	// Frameless remove border on frames
 	Frameless bool `json:"frameless" mapstructure:"frameless" query:"frameless" form:"frameless" default:"false"`
+	// StartFullscreen asks browser to go into fullscreen on load
+	StartFullscreen bool `json:"startfullscreen" mapstructure:"startfullscreen" query:"startfullscreen" form:"startfullscreen" default:"false"`
 
 	// ShowTime whether to display clock
 	ShowTime bool `json:"showTime" mapstructure:"show_time" query:"show_time" form:"show_time" default:"false"`

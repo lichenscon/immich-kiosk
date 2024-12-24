@@ -45,6 +45,7 @@ interface HTMXEvent extends Event {
  * @property timeFormat - Format for time display
  * @property transition - Type of transition animation
  * @property showMoreInfo - Show the more info image overlay
+ * @property startFullscreen - Whether to start fullscreen mode on load
  */
 type KioskData = {
   debug: boolean;
@@ -59,6 +60,7 @@ type KioskData = {
   timeFormat: TimeFormat;
   transition: string;
   showMoreInfo: boolean;
+  startFullscreen: boolean;
 };
 
 const MAX_FRAMES: number = 2 as const;
@@ -130,6 +132,10 @@ async function init(): Promise<void> {
 
   if (kioskData.disableScreensaver) {
     await preventSleep();
+  }
+
+  if (kioskData.startFullscreen) {
+    handleFullscreenClick();
   }
 
   if ("serviceWorker" in navigator) {
