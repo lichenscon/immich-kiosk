@@ -134,7 +134,9 @@ async function init(): Promise<void> {
     await preventSleep();
   }
 
+  console.log(kioskData.startFullscreen);
   if (kioskData.startFullscreen) {
+    console.log("Trying to start in fullscreen mode");
     handleFullscreenClick();
   }
 
