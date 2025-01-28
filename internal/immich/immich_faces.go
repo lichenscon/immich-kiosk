@@ -7,13 +7,15 @@ import (
 	"github.com/charmbracelet/log"
 )
 
-func (i *ImmichAsset) CheckForFaces(requestID string) {
+func (i *ImmichAsset) CheckForFaces(requestID, deviceID string) {
 
 	var faces []Face
 
 	u, err := url.Parse(requestConfig.ImmichUrl)
 	if err != nil {
-		log.Fatal(err)
+		_, _, err = immichApiFail(faces, err, nil, "")
+		log.Error("parsing faces url", "err", err)
+		return
 	}
 
 	apiUrl := url.URL{
@@ -23,17 +25,17 @@ func (i *ImmichAsset) CheckForFaces(requestID string) {
 		RawQuery: "id=" + i.ID,
 	}
 
-	immichApiCall := immichApiCallDecorator(i.immichApiCall, requestID, faces)
+	immichApiCall := immichApiCallDecorator(i.immichApiCall, requestID, deviceID, faces)
 	body, err := immichApiCall("GET", apiUrl.String(), nil)
 	if err != nil {
-		_, err = immichApiFail(faces, err, body, apiUrl.String())
+		_, _, err = immichApiFail(faces, err, body, apiUrl.String())
 		log.Error("adding faces", "err", err)
 		return
 	}
 
 	err = json.Unmarshal(body, &faces)
 	if err != nil {
-		_, err = immichApiFail(faces, err, body, apiUrl.String())
+		_, _, err = immichApiFail(faces, err, body, apiUrl.String())
 		log.Error("adding faces", "err", err)
 		return
 	}

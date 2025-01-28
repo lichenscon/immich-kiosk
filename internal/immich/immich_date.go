@@ -5,34 +5,71 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/damongolding/immich-kiosk/internal/cache"
 	"github.com/google/go-querystring/query"
 )
 
-// RandomImage fetches a random image from the Immich API while handling caching and retries.
-//
-// This function performs the following:
-// - Makes an API request to get random images based on configured parameters
-// - Caches results to optimize subsequent requests
-// - Filters images based on type, trash/archive status, and aspect ratio
-// - Retries up to MaxRetries times if no suitable images are found
-// - Updates the cache to remove used images
-//
+// RandomImageInDateRange retrieves a random image from the Immich API within the specified date range.
 // Parameters:
-//   - requestID: Unique identifier for tracking and logging
-//   - deviceID: ID of the device making the request
-//   - isPrefetch: Indicates if this is a prefetch request
+//   - dateRange: A string in the format "YYYY-MM-DD_to_YYYY-MM-DD" or using "today" for current date
+//   - requestID: Unique identifier for tracking the request
+//   - deviceID: ID of the requesting device
+//   - isPrefetch: Whether this is a prefetch request
 //
-// Returns an error if no suitable image is found after retries or if there
-// are any issues with API calls, caching, or image processing.
-func (i *ImmichAsset) RandomImage(requestID, deviceID string, isPrefetch bool) error {
+// The function handles:
+// - Date range parsing and validation
+// - Making API requests with retries
+// - Caching of results
+// - Filtering images based on type/status
+// - Ratio checking of images
+//
+// Returns an error if no valid images are found after max retries
+func (i *ImmichAsset) RandomImageInDateRange(dateRange, requestID, deviceID string, isPrefetch bool) error {
+
+	if !strings.Contains(dateRange, "_to_") {
+		return fmt.Errorf("Invalid date range format. Expected 'YYYY-MM-DD_to_YYYY-MM-DD', got '%s'", dateRange)
+	}
+
+	dates := strings.SplitN(dateRange, "_to_", 2)
+	if len(dates) != 2 {
+		return fmt.Errorf("Invalid date range format. Expected 'YYYY-MM-DD_to_YYYY-MM-DD', got '%s'", dateRange)
+	}
+
+	dateStart := time.Now()
+	dateEnd := time.Now()
+	var err error
+
+	if !strings.EqualFold(dates[0], "today") {
+		dateStart, err = time.Parse("2006-01-02", dates[0])
+		if err != nil {
+			return err
+		}
+	}
+
+	if !strings.EqualFold(dates[1], "today") {
+		dateEnd, err = time.Parse("2006-01-02", dates[1])
+		if err != nil {
+			return err
+		}
+	}
+
+	if dateEnd.Before(dateStart) {
+		dateStart, dateEnd = dateEnd, dateStart
+	}
+
+	dateStartHuman := dateStart.Format("2006-01-02")
+	dateEndHuman := dateEnd.Format("2006-01-02")
+
+	dateEnd = dateEnd.AddDate(0, 0, 1).Add(-time.Nanosecond)
 
 	if isPrefetch {
-		log.Debug(requestID, "PREFETCH", deviceID, "Getting Random image", true)
+		log.Debug(requestID, "PREFETCH", deviceID, "Getting Random image from", dateStartHuman, "to", dateEndHuman)
 	} else {
-		log.Debug(requestID + " Getting Random image")
+		log.Debug(requestID+" Getting Random image", "from", dateStartHuman, "to", dateEndHuman)
 	}
 
 	for retries := 0; retries < MaxRetries; retries++ {
@@ -41,15 +78,16 @@ func (i *ImmichAsset) RandomImage(requestID, deviceID string, isPrefetch bool) e
 
 		u, err := url.Parse(requestConfig.ImmichUrl)
 		if err != nil {
-			_, _, err = immichApiFail(immichAssets, err, nil, "")
-			return err
+			return fmt.Errorf("parsing url: %w", err)
 		}
 
 		requestBody := ImmichSearchRandomBody{
-			Type:       string(ImageType),
-			WithExif:   true,
-			WithPeople: true,
-			Size:       requestConfig.Kiosk.FetchedAssetsSize,
+			Type:        string(ImageType),
+			TakenAfter:  dateStart.Format(time.RFC3339),
+			TakenBefore: dateEnd.Format(time.RFC3339),
+			WithExif:    true,
+			WithPeople:  true,
+			Size:        requestConfig.Kiosk.FetchedAssetsSize,
 		}
 
 		if requestConfig.ShowArchived {
@@ -68,8 +106,7 @@ func (i *ImmichAsset) RandomImage(requestID, deviceID string, isPrefetch bool) e
 
 		jsonBody, err := json.Marshal(requestBody)
 		if err != nil {
-			_, _, err = immichApiFail(immichAssets, err, nil, "")
-			return err
+			return fmt.Errorf("marshaling request body: %w", err)
 		}
 
 		immichApiCall := immichApiCallDecorator(i.immichApiCall, requestID, deviceID, immichAssets)
@@ -114,19 +151,23 @@ func (i *ImmichAsset) RandomImage(requestID, deviceID string, isPrefetch bool) e
 					return err
 				}
 
-				// replace cwith cache minus used image
+				// replace cache with used image(s) removed
 				err = cache.Replace(apiCacheKey, jsonBytes)
 				if err != nil {
-					log.Debug("cache not found!")
+					log.Debug("Failed to update cache", "error", err, "url", apiUrl.String())
 				}
 			}
 
+			img.KioskSourceName = fmt.Sprintf("%s to %s", dateStartHuman, dateEndHuman)
+
 			*i = img
+
 			return nil
 		}
 
 		log.Debug(requestID + " No viable images left in cache. Refreshing and trying again")
 		cache.Delete(apiCacheKey)
 	}
-	return fmt.Errorf("No images found for random. Max retries reached.")
+
+	return fmt.Errorf("No images found for '%s'. Max retries reached.", dateRange)
 }

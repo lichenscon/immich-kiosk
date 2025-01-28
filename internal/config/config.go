@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/goodsign/monday"
 	"github.com/mcuadros/go-defaults"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -41,6 +42,14 @@ const (
 	defaultScheme     = "http://"
 	DefaultDateLayout = "02/01/2006"
 	defaultConfigFile = "config.yaml"
+
+	AlbumOrderRandom     = "random"
+	AlbumOrderAscending  = "ascending"
+	AlbumOrderAsc        = "asc"
+	AlbumOrderOldest     = "oldest"
+	AlbumOrderDescending = "descending"
+	AlbumOrderDesc       = "desc"
+	AlbumOrderNewest     = "newest"
 )
 
 // Redirect represents a URL redirection configuration with a friendly name.
@@ -137,6 +146,8 @@ type Config struct {
 	configLastModTime time.Time `json:"-"`
 	// configHash stores the SHA-256 hash of the configuration file
 	configHash string `json:"-"`
+	// SystemLang the system language
+	SystemLang monday.Locale `json:"-" default:"en_GB"`
 
 	// ImmichApiKey Immich key to access assets
 	ImmichApiKey string `json:"-" mapstructure:"immich_api_key" default:""`
@@ -189,8 +200,14 @@ type Config struct {
 	// Person ID of person to display
 	Person []string `json:"person" mapstructure:"person" query:"person" form:"person" default:"[]"`
 	// Album ID of album(s) to display
-	Album          []string `json:"album" mapstructure:"album" query:"album" form:"album" default:"[]"`
+	Album []string `json:"album" mapstructure:"album" query:"album" form:"album" default:"[]"`
+	// AlbumOrder specifies the order in which album assets are displayed.
+	AlbumOrder     string   `json:"album_order" mapstructure:"album_order" query:"album_order" form:"album_order" default:"random"`
 	ExcludedAlbums []string `json:"excluded_albums" mapstructure:"excluded_albums" query:"exclude_album" form:"exclude_album" default:"[]"`
+	// Date date filter
+	Date []string `json:"date" mapstructure:"date" query:"date" form:"date" default:"[]"`
+	// Memories show memories
+	Memories bool `json:"memories" mapstructure:"memories" query:"memories" form:"memories" default:"false"`
 
 	// ImageFit the fit style for main image
 	ImageFit string `json:"imageFit" mapstructure:"image_fit" query:"image_fit" form:"image_fit" default:"contain" lowercase:"true"`
@@ -252,6 +269,8 @@ type Config struct {
 
 	// OptimizeImages tells Kiosk to optimize imahes
 	OptimizeImages bool `json:"optimize_images" mapstructure:"optimize_images" query:"optimize_images" form:"optimize_images" default:"false"`
+	// UseGpu tells Kiosk to use GPU where possible
+	UseGpu bool `json:"use_gpu" mapstructure:"use_gpu" query:"use_gpu" form:"use_gpu" default:"true"`
 
 	// Webhooks defines a list of webhook endpoints and their associated events that should trigger notifications.
 	Webhooks []Webhook `json:"webhooks" mapstructure:"webhooks" default:"[]"`
@@ -377,7 +396,8 @@ func (c *Config) Load() error {
 
 	c.checkRequiredFields()
 	c.checkLowercaseTaggedFields()
-	c.checkAlbumAndPerson()
+	c.checkAssetBuckets()
+	c.checkAlbumOrder()
 	c.checkExcludedAlbums()
 	c.checkUrlScheme()
 	c.checkHideCountries()
@@ -393,9 +413,10 @@ func (c *Config) Load() error {
 func (c *Config) ConfigWithOverrides(queries url.Values, e echo.Context) error {
 
 	// check for person or album in quries and empty baseconfig slice if found
-	if queries.Has("person") || queries.Has("album") {
+	if queries.Has("person") || queries.Has("album") || queries.Has("date") || queries.Has("memories") {
 		c.Person = []string{}
 		c.Album = []string{}
+		c.Date = []string{}
 	}
 
 	err := e.Bind(c)

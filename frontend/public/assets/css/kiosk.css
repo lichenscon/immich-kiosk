@@ -157,8 +157,14 @@ body {
     sans-serif;
   letter-spacing: 0.0625rem;
   background-color: #000;
+  width: 100%;
   width: 100vw;
+  min-width: 100%;
+  min-width: 100vw;
+  height: 100%;
   height: 100vh;
+  min-height: 100%;
+  min-height: 100vh;
   overflow: hidden;
 }
 @media screen and (max-width: 31.25rem) {
@@ -166,6 +172,9 @@ body {
   body {
     font-size: 80%;
   }
+}
+form {
+  display: none;
 }
 
 /* src/css/container.css */
@@ -472,8 +481,8 @@ body {
        animation-direction: normal;
   -moz-animation-duration: inherit;
        animation-duration: inherit;
-  -moz-transition-timing-function: cubic-bezier(0.455, 0.03, 0.515, 0.955);
-       transition-timing-function: cubic-bezier(0.455, 0.03, 0.515, 0.955);
+  -moz-transition-timing-function: linear;
+       transition-timing-function: linear;
   -moz-animation-fill-mode: forwards;
        animation-fill-mode: forwards;
   -moz-transform-origin: inherit;
@@ -481,7 +490,7 @@ body {
        transform-origin: inherit;
   -o-object-position: inherit;
      object-position: inherit;
-  will-change: scale;
+  will-change: transform;
 }
 .frame .frame--image-zoom-in img {
   -moz-animation-name: image-zoom-in;
@@ -753,8 +762,12 @@ body {
   -moz-box-pack: justify;
        justify-content: space-between;
   height: 100%;
+  height: 100vh;
+  min-height: 100%;
+  min-height: 100vh;
   top: 0;
   left: 0;
+  bottom: 0;
   z-index: var(--z-clock);
 }
 .layout-splitview #clock-weather-container {
@@ -763,6 +776,8 @@ body {
        flex-direction: row;
   width: 100%;
   height: auto;
+  min-height: auto;
+  bottom: unset;
 }
 .sleep #clock-weather-container {
   height: 100%;
